@@ -245,6 +245,11 @@
             pointer-events: none;
         }
 
+        .envelope.open,
+        .envelope.open * {
+            pointer-events: none !important;
+        }
+
         /* Почтовый штемпель в углу конверта */
         .stamp-mark {
             position: absolute;
@@ -456,17 +461,17 @@
     <!-- ==========================================
          СЦЕНА 3: ЭКРАН ПИСЬМА
          ========================================== -->
-    <section id="scene-3" class="scene">
-        <div class="w-full max-w-md flex flex-col items-center">
-            <div class="paper-card w-full rounded-3xl p-7 sm:p-9 max-h-[74vh] overflow-y-auto letter-scroll text-left relative">
+    <section id="scene-3" class="scene" onclick="handleScene3BackdropTap(event)">
+        <div id="letterWrapper" class="w-full max-w-md flex flex-col items-center relative z-30">
+            <div id="letterCard" class="paper-card w-full rounded-3xl p-6 sm:p-9 max-h-[64vh] sm:max-h-[70vh] overflow-y-auto letter-scroll text-left relative z-20" onclick="event.stopPropagation()">
                 <p class="font-handwriting text-2xl sm:text-3xl text-[#d84b7a] mb-1">
                     это тебе, Арина
                 </p>
-                <h2 class="font-serif-title text-3xl sm:text-4xl font-semibold text-stone-900 mb-6">
+                <h2 class="font-serif-title text-3xl sm:text-4xl font-semibold text-stone-900 mb-5">
                     Чтобы ты знала
                 </h2>
 
-                <div class="font-handwriting text-[23px] sm:text-[25px] leading-[1.38] text-stone-700 space-y-4">
+                <div class="font-handwriting text-[22px] sm:text-[25px] leading-[1.38] text-stone-700 space-y-4">
                     <p>
                         Иногда за долгими разговорами, спорами или ночной усталостью так легко потерять самое главное. Я могу долго подбирать правильные фразы или молчать, но не потому, что не чувствую — а потому, что боюсь сказать меньше, чем есть у меня внутри.
                     </p>
@@ -482,13 +487,20 @@
                 </div>
             </div>
 
-            <button 
-                onclick="transitionToGalaxy()" 
-                class="btn-pink w-full max-w-xs h-14 mt-6 text-lg flex items-center justify-center gap-2"
-            >
-                <span>Дальше</span>
-                <span>🤍</span>
-            </button>
+            <div class="w-full flex flex-col items-center mt-5 relative z-[9999] pointer-events-auto" style="margin-bottom: calc(20px + env(safe-area-inset-bottom, 16px));">
+                <button 
+                    id="nextToGalaxyBtn"
+                    type="button"
+                    class="btn-pink w-full max-w-xs min-h-[56px] px-9 py-4 text-lg font-medium flex items-center justify-center gap-2 cursor-pointer pointer-events-auto shadow-xl active:scale-95"
+                    style="touch-action: manipulation; -webkit-tap-highlight-color: transparent;"
+                >
+                    <span>Дальше</span>
+                    <span>🤍</span>
+                </button>
+                <p id="letterDismissHint" class="text-xs text-pink-200/65 mt-3 tracking-wide animate-pulse-soft cursor-pointer py-1 px-3">
+                    или нажми в любое пустое место экрана
+                </p>
+            </div>
         </div>
     </section>
 
@@ -678,20 +690,26 @@
         }
 
         let isEnvelopeOpened = false;
+        let scene3ReadyTime = 0;
+        let hasTransitionedToGalaxy = false;
+
         function openEnvelope() {
             if (isEnvelopeOpened) return;
             isEnvelopeOpened = true;
 
             const env = document.getElementById('envelopeElement');
+            const envContainer = document.getElementById('envelopeContainer');
             const label = document.getElementById('envelopeActionLabel');
             const intro = document.getElementById('envelopeIntroText');
 
+            if (envContainer) envContainer.style.pointerEvents = 'none';
             label.textContent = 'открываю...';
             intro.style.opacity = '0';
             env.classList.add('open');
 
             setTimeout(() => {
                 switchScene('scene-2', 'scene-3');
+                scene3ReadyTime = performance.now() + 850;
             }, 1750);
         }
 
@@ -713,15 +731,79 @@
             }
         }
 
-        function transitionToGalaxy() {
+        function transitionToGalaxy(e) {
+            if (e) {
+                e.stopPropagation();
+            }
+            if (hasTransitionedToGalaxy) return;
+            hasTransitionedToGalaxy = true;
+
             spawnFloatingHearts();
             setTimeout(() => {
                 switchScene('scene-3', 'scene-4');
                 document.getElementById('settingsToggleBtn').classList.remove('hidden');
                 document.getElementById('settingsToggleBtn').classList.add('flex');
                 initGalaxyScene();
-            }, 650);
+            }, 550);
         }
+
+        function handleScene3BackdropTap(e) {
+            // Позволяем закрыть письмо нажатием на любое пустое место экрана после его появления
+            if (performance.now() < scene3ReadyTime) return;
+            const letterCard = document.getElementById('letterCard');
+            if (letterCard && !letterCard.contains(e.target)) {
+                transitionToGalaxy(e);
+            }
+        }
+
+        // Надёжная привязка click + touchend для мобильных браузеров (Safari / Telegram)
+        (function setupMobileLetterButton() {
+            const nextBtn = document.getElementById('nextToGalaxyBtn');
+            const hintText = document.getElementById('letterDismissHint');
+            const scene3El = document.getElementById('scene-3');
+
+            if (nextBtn) {
+                nextBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    transitionToGalaxy(e);
+                });
+                nextBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    transitionToGalaxy(e);
+                }, { passive: false });
+            }
+
+            if (hintText) {
+                hintText.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    transitionToGalaxy(e);
+                });
+                hintText.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    transitionToGalaxy(e);
+                }, { passive: false });
+            }
+
+            if (scene3El) {
+                let touchStartY = 0;
+                scene3El.addEventListener('touchstart', (e) => {
+                    if (e.touches.length === 1) {
+                        touchStartY = e.touches[0].clientY;
+                    }
+                }, { passive: true });
+
+                scene3El.addEventListener('touchend', (e) => {
+                    if (performance.now() < scene3ReadyTime) return;
+                    const letterCard = document.getElementById('letterCard');
+                    if (letterCard && !letterCard.contains(e.target)) {
+                        const touchEndY = e.changedTouches[0].clientY;
+                        if (Math.abs(touchEndY - touchStartY) < 25) {
+                            transitionToGalaxy(e);
+                        }
+                    }
+                }, { passive: true });
+            }
+        })();
 
         function showToast(text) {
             const toast = document.getElementById('toastMessage');
